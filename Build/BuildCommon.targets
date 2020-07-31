@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!--
+    This file is heavily inspired by the solution by Lev Gimelfarb found at
+    http://www.lionhack.com/2014/02/13/msbuild-override-assembly-version/
+
+    To use this file, add a reference to this file in the .csproj (Full Framework) file, e.g.:
+    <Import Project="$(ProjectDir)\..\Build\BuildCommon.targets" />
+  -->
+
+  <!--
+    Defining custom Target to execute before project compilation starts.
+  -->
+  <PropertyGroup>
+    <CompileDependsOn>
+      CommonBuildDefineModifiedAssemblyVersion;
+      $(CompileDependsOn);
+    </CompileDependsOn>
+
+    <GlobalAssemblyInfoFile>..\Build\GlobalAssemblyInfo.cs</GlobalAssemblyInfoFile>
+    <MajorVersion>1</MajorVersion>
+    <MinorVersion>0</MinorVersion>
+    <PatchNumber>0</PatchNumber>
+    <CiBuildNumber>0</CiBuildNumber>
+    <VersionAssembly>$(MajorVersion).$(MinorVersion).$(PatchNumber)</VersionAssembly>
+    <FileVersionAssembly>$(MajorVersion).$(MinorVersion).$(PatchNumber).$(CiBuildNumber)</FileVersionAssembly>
+    <GitHash>f504e3c7</GitHash>
+  </PropertyGroup>
+
+
+  <!--
+    Creates modified version of GlobalAssemblyInfo.cs, replaces [AssemblyVersion] attribute with
+    the one specifying actual build version, and includes that file instead of the original
+    GlobalAssemblyInfo.cs in the compilation.
+  -->
+  <!--<Target Name="CommonBuildDefineModifiedAssemblyVersion" Condition="'$(VersionAssembly)' != ''">-->
+  <Target Name="CommonBuildDefineModifiedAssemblyVersion">
+    <ItemGroup>
+      <OriginalAssemblyInfo Include="$(GlobalAssemblyInfoFile)" />
+    </ItemGroup>
+
+    <!--
+      Copy the original GlobalAssemblyInfo.cs to obj\ folder, i.e. $(IntermediateOutputPath).
+      The copied filepath is saved into @(ModifiedAssemblyInfo) Item.
+    -->
+    <Copy SourceFiles="@(OriginalAssemblyInfo)"
+          DestinationFiles="@(OriginalAssemblyInfo->'$(IntermediateOutputPath)%(Filename)%(Extension)')">
+      <Output ItemName="ModifiedAssemblyInfo" TaskParameter="DestinationFiles" />
+    </Copy>
+
+
+    <!--
+      Change the content of the file using properties set higher up.
+      In production you should probably set the properties using the
+      command line paramter, e.g.: msbuild /p:GitHash=06b9cba5
+    -->
+    <AssemblyInfo
+          AssemblyInfoFiles="@(ModifiedAssemblyInfo)"
+          AssemblyVersion="$(VersionAssembly).0"
+          AssemblyFileVersion="$(FileVersionAssembly)"
+          AssemblyConfiguration="$(ConfigurationName)"
+          UpdateAssemblyInformationalVersion="true"
+          AssemblyInformationalVersion="$(VersionAssembly)-$(GitHash)" />
+
+    <!-- Include the modified AssemblyInfo.cs file in "Compile" items (instead of the original). -->
+    <ItemGroup>
+      <Compile Remove="@(OriginalAssemblyInfo)" />
+      <Compile Include="@(ModifiedAssemblyInfo)" />
+    </ItemGroup>
+  </Target>
+
+</Project>
